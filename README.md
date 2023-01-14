@@ -1,25 +1,25 @@
 # Specification
 
-Wsl windows
-Ubuntu 18.04.6 LTS
-conda 22.11.1
-Python 3.8.15
+- Wsl windows
+- Ubuntu 18.04.6 LTS
+- conda 22.11.1
+- Python 3.8.15
 
->>> nvidia-smi
-NVIDIA-SMI 525.60.12
-Driver Version: 527.41
-CUDA Version: 12.0
+## nvidia-smi
+- NVIDIA-SMI 525.60.12
+- Driver Version: 527.41
+- CUDA Version: 12.0
 
->>> torch
-1.13.1
-True
-1
-0
-<torch.cuda.device object at 0x7f8946396730>
-NVIDIA GeForce RTX 3060 Laptop GPU
-11.6
+## torch
+- 1.13.1
+- True
+- 1
+- 0
+- <torch.cuda.device object at 0x7f8946396730>
+- NVIDIA GeForce RTX 3060 Laptop GPU
+- 11.6
 
->>> conda list python
+## conda list python
 ipython                   8.7.0            py38h06a4308_0  
 ipython_genutils          0.2.0                      py_1    conda-forge
 opencv-python             4.5.3.56                 pypi_0    pypi
