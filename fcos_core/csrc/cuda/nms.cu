@@ -2,8 +2,22 @@
 #include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
 
-#include <THC/THC.h>
-#include <THC/THCDeviceUtils.cuh>
+// #include <THC/THC.h>
+// #include <THC/THCDeviceUtils.cuh>
+
+// https://stackoverflow.com/questions/55919123/cuda-for-pytorch-cuda-c-stream-and-state
+// THCSState --> at::cuda::getCurrentCUDAStream()
+
+// https://github.com/sshaoshuai/Pointnet2.PyTorch/issues/34
+// cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+#include <ATen/cuda/CUDAContext.h>
+#include <ATen/cuda/CUDAEvent.h>
+
+// https://github.com/pytorch/pytorch/pull/65472
+#include <ATen/ceil_div.h>
+
+// https://www.exxactcorp.com/blog/Deep-Learning/pytorch-1-11-0-now-available
+#include <ATen/cuda/ThrustAllocator.h>
 
 #include <vector>
 #include <iostream>
@@ -61,7 +75,7 @@ __global__ void nms_kernel(const int n_boxes, const float nms_overlap_thresh,
         t |= 1ULL << i;
       }
     }
-    const int col_blocks = THCCeilDiv(n_boxes, threadsPerBlock);
+    const int col_blocks = at::ceil_div(n_boxes, threadsPerBlock);
     dev_mask[cur_box_idx * col_blocks + col_start] = t;
   }
 }
@@ -76,31 +90,33 @@ at::Tensor nms_cuda(const at::Tensor boxes, float nms_overlap_thresh) {
 
   int boxes_num = boxes.size(0);
 
-  const int col_blocks = THCCeilDiv(boxes_num, threadsPerBlock);
+  const int col_blocks = at::ceil_div(boxes_num, threadsPerBlock);
 
   scalar_t* boxes_dev = boxes_sorted.data<scalar_t>();
 
-  THCState *state = at::globalContext().lazyInitCUDA(); // TODO replace with getTHCState
+  // at::cuda::getCurrentCUDAStream() *state = at::globalContext().lazyInitCUDA(); // TODO replace with getTHCState
+  cudaStream_t stream = at::cuda::getCurrentCUDAStream();
 
-  unsigned long long* mask_dev = NULL;
-  //THCudaCheck(THCudaMalloc(state, (void**) &mask_dev,
+  // unsigned long long* mask_dev = NULL;
+  // C10_CUDA_CHECK(c10:cuda::CUDaCachingAllocator::allocate(stream, (void**) &mask_dev,
   //                      boxes_num * col_blocks * sizeof(unsigned long long)));
 
-  mask_dev = (unsigned long long*) THCudaMalloc(state, boxes_num * col_blocks * sizeof(unsigned long long));
+  // mask_dev = (unsigned long long*) c10:cuda::CUDaCachingAllocator::allocate(stream, boxes_num * col_blocks * sizeof(unsigned long long));
+  // mask_dev = (unsigned long long*) c10:cuda::CUDaCachingAllocator::allocate();
 
-  dim3 blocks(THCCeilDiv(boxes_num, threadsPerBlock),
-              THCCeilDiv(boxes_num, threadsPerBlock));
+  dim3 blocks(at::ceil_div(boxes_num, threadsPerBlock),
+              at::ceil_div(boxes_num, threadsPerBlock));
   dim3 threads(threadsPerBlock);
-  nms_kernel<<<blocks, threads>>>(boxes_num,
-                                  nms_overlap_thresh,
-                                  boxes_dev,
-                                  mask_dev);
+  // nms_kernel<<<blocks, threads>>>(boxes_num,
+  //                                 nms_overlap_thresh,
+  //                                 boxes_dev,
+  //                                 mask_dev);
 
   std::vector<unsigned long long> mask_host(boxes_num * col_blocks);
-  THCudaCheck(cudaMemcpy(&mask_host[0],
-                        mask_dev,
-                        sizeof(unsigned long long) * boxes_num * col_blocks,
-                        cudaMemcpyDeviceToHost));
+  // C10_CUDA_CHECK(cudaMemcpy(&mask_host[0],
+  //                       mask_dev,
+  //                       sizeof(unsigned long long) * boxes_num * col_blocks,
+  //                       cudaMemcpyDeviceToHost));
 
   std::vector<unsigned long long> remv(col_blocks);
   memset(&remv[0], 0, sizeof(unsigned long long) * col_blocks);
@@ -122,7 +138,7 @@ at::Tensor nms_cuda(const at::Tensor boxes, float nms_overlap_thresh) {
     }
   }
 
-  THCudaFree(state, mask_dev);
+  // c10:cuda::CUDaCachingAllocator::allocate(stream, mask_dev);
   // TODO improve this part
   return std::get<0>(order_t.index({
                        keep.narrow(/*dim=*/0, /*start=*/0, /*length=*/num_to_keep).to(

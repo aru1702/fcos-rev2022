@@ -82,7 +82,7 @@ class RPNPostProcessor(torch.nn.Module):
         N, A, H, W = objectness.shape
 
         # put in the same format as anchors
-        objectness = permute_and_flatten(objectness, N, A, 1, H, W).view(N, -1)
+        objectness = permute_and_flatten(objectness, N, A, 1, H, W).reshape(N, -1)
         objectness = objectness.sigmoid()
 
         box_regression = permute_and_flatten(box_regression, N, A, 4, H, W)
@@ -100,10 +100,10 @@ class RPNPostProcessor(torch.nn.Module):
         concat_anchors = concat_anchors.reshape(N, -1, 4)[batch_idx, topk_idx]
 
         proposals = self.box_coder.decode(
-            box_regression.view(-1, 4), concat_anchors.view(-1, 4)
+            box_regression.reshape(-1, 4), concat_anchors.reshape(-1, 4)
         )
 
-        proposals = proposals.view(N, -1, 4)
+        proposals = proposals.reshape(N, -1, 4)
 
         result = []
         for proposal, score, im_shape in zip(proposals, objectness, image_shapes):
